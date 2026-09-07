@@ -15,6 +15,7 @@ import { useSettingsStore } from '../../../store/useSettingsStore';
 import { getLibraryDisplayPath } from '../../../utils/filePath';
 import { useProcessStore } from '../../../store/useProcessStore';
 import { useLibraryActions } from '../../../hooks/useLibraryActions';
+import { expandGroupedPaths } from '../../../utils/imageGrouping';
 
 interface CameraSetting {
   format?(value: number): string | number;
@@ -43,6 +44,7 @@ interface MetaDataItemProps {
 }
 
 const USER_TAG_PREFIX = 'user:';
+const EMPTY_TAGS: string[] = [];
 
 function formatExifTag(str: string) {
   if (!str) return '';
@@ -244,7 +246,6 @@ export default function MetadataPanel() {
   const [isTagInputFocused, setIsTagInputFocused] = useState(false);
   const selectedImage = useEditorStore((s) => s.selectedImage);
   const multiSelectedPaths = useLibraryStore((s) => s.multiSelectedPaths);
-  const imageList = useLibraryStore((s) => s.imageList);
   const rootPaths = useLibraryStore((s) => s.rootPaths);
   const imageRatings = useLibraryStore((s) => s.imageRatings);
   const appSettings = useSettingsStore((s) => s.appSettings);
@@ -253,10 +254,18 @@ export default function MetadataPanel() {
   const { handleRate, handleSetColorLabel, handleTagsChanged, handleUpdateExif } = useLibraryActions();
 
   const rating = selectedImage ? imageRatings[selectedImage.path] || 0 : 0;
-  const tags = selectedImage ? imageList.find((img) => img.path === selectedImage.path)?.tags || [] : [];
+  const tags = useLibraryStore((state) => {
+    if (!selectedImage) return EMPTY_TAGS;
+    return state.imageList.find((img) => img.path === selectedImage.path)?.tags ?? EMPTY_TAGS;
+  });
   const liveThumbnailUrl = selectedImage ? thumbnails[selectedImage.path] : undefined;
 
   const targetPaths = multiSelectedPaths?.length > 0 ? multiSelectedPaths : selectedImage ? [selectedImage.path] : [];
+  const getPathsToUpdate = () => {
+    const { imageList } = useLibraryStore.getState();
+    const groupingMode = useSettingsStore.getState().appSettings?.grouping ?? 'off';
+    return expandGroupedPaths(imageList, targetPaths, groupingMode);
+  };
 
   const { cameraGridSettings, lensSetting, gpsData, otherExifEntries } = useMemo(() => {
     const exif = selectedImage?.exif || {};
@@ -356,7 +365,8 @@ export default function MetadataPanel() {
     if (newTagValue && !currentTags.some((t) => t.tag === newTagValue)) {
       try {
         const prefixedTag = `${USER_TAG_PREFIX}${newTagValue}`;
-        await invoke(Invokes.AddTagForPaths, { paths: targetPaths, tag: prefixedTag });
+        const pathsToUpdate = getPathsToUpdate();
+        await invoke(Invokes.AddTagForPaths, { paths: pathsToUpdate, tag: prefixedTag });
 
         const newTags = [...currentTags, { tag: newTagValue, isUser: true }];
         handleTagsChanged(targetPaths, newTags);
@@ -370,7 +380,8 @@ export default function MetadataPanel() {
   const handleRemoveTag = async (tagToRemove: { tag: string; isUser: boolean }) => {
     try {
       const prefixedTag = tagToRemove.isUser ? `${USER_TAG_PREFIX}${tagToRemove.tag}` : tagToRemove.tag;
-      await invoke(Invokes.RemoveTagForPaths, { paths: targetPaths, tag: prefixedTag });
+      const pathsToUpdate = getPathsToUpdate();
+      await invoke(Invokes.RemoveTagForPaths, { paths: pathsToUpdate, tag: prefixedTag });
 
       const newTags = currentTags.filter((t) => t.tag !== tagToRemove.tag);
       handleTagsChanged(targetPaths, newTags);
