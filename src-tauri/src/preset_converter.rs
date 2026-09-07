@@ -1,5 +1,6 @@
 use rawler::{decoders::RawDecodeParams, rawsource::RawSource};
 use regex::Regex;
+use regex::regex;
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 use std::fs;
@@ -879,10 +880,8 @@ fn apply_rendered_pv2012_policy(
 }
 
 fn extract_xmp_name(xmp_content: &str) -> Option<String> {
-    let re =
-        Regex::new(r#"(?s)<crs:Name>.*?<rdf:Alt>.*?<rdf:li[^>]*>([^<]+)</rdf:li>.*?</crs:Name>"#)
-            .ok()?;
-    re.captures(xmp_content)
+    regex!(r#"(?s)<crs:Name>.*?<rdf:Alt>.*?<rdf:li[^>]*>([^<]+)</rdf:li>.*?</crs:Name>"#)
+        .captures(xmp_content)
         .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()))
 }
 
@@ -895,7 +894,7 @@ fn extract_tone_curve_points(xmp_str: &str, curve_name: &str) -> Option<Vec<Valu
     let captures = re.captures(xmp_str)?;
     let seq_content = captures.get(1)?.as_str();
 
-    let point_re = Regex::new(r"<rdf:li>(\d+),\s*(\d+)</rdf:li>").ok()?;
+    let point_re = regex!(r"<rdf:li>(\d+),\s*(\d+)</rdf:li>");
     let mut points = Vec::new();
 
     for point_cap in point_re.captures_iter(seq_content) {
@@ -1015,8 +1014,7 @@ fn parse_xmp_attributes(xmp_content: &str) -> Result<HashMap<String, String>, St
         .and_then(|captures| captures.get(1))
         .map_or(xmp_content, |attributes| attributes.as_str());
 
-    let attr_re = Regex::new(r#"crs:([A-Za-z0-9]+)="([^"]*)""#)
-        .map_err(|e| format!("Regex compilation failed: {}", e))?;
+    let attr_re = regex!(r#"crs:([A-Za-z0-9]+)="([^"]*)""#);
     let mut attrs: HashMap<String, String> = HashMap::new();
     for cap in attr_re.captures_iter(attribute_source) {
         attrs.insert(cap[1].to_string(), cap[2].to_string());
