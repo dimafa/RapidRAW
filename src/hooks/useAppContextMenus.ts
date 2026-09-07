@@ -14,6 +14,7 @@ import {
   FolderPlus,
   Images,
   LayoutTemplate,
+  LayersArrowDown,
   Redo,
   RefreshCw,
   RotateCcw,
@@ -28,6 +29,7 @@ import {
   PinOff,
   Users,
   Gauge,
+  Layers,
   Grip,
   Film,
   Home,
@@ -41,6 +43,7 @@ import {
   Briefcase,
   User,
   Album as AlbumIcon,
+  PencilSparkles,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
@@ -73,8 +76,13 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
   const { t } = useTranslation();
   const { showContextMenu } = useContextMenu();
 
-  const { handleAutoAdjustments, handleResetAdjustments, handleCopyAdjustments, handlePasteAdjustments } =
-    useEditorActions();
+  const {
+    handleAutoAdjustments,
+    handleAutoLensCorrection,
+    handleResetAdjustments,
+    handleCopyAdjustments,
+    handlePasteAdjustments,
+  } = useEditorActions();
   const { handleRate, handleSetColorLabel, handleTagsChanged } = useLibraryActions();
 
   const albumIcons = useMemo(
@@ -199,8 +207,14 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           submenu: [
             {
               label: t('contextMenus.editor.autoAdjust'),
-              icon: Aperture,
+              icon: PencilSparkles,
               onClick: handleAutoAdjustments,
+              disabled: !selectedImage?.isReady,
+            },
+            {
+              label: t('contextMenus.editor.autoLensCorrection'),
+              icon: Aperture,
+              onClick: () => handleAutoLensCorrection([selectedImage.path]),
               disabled: !selectedImage?.isReady,
             },
             {
@@ -229,8 +243,6 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                 }
               },
             },
-            { disabled: true, icon: SquaresUnite, label: t('contextMenus.editor.stitchPanorama') },
-            { disabled: true, icon: Images, label: t('contextMenus.editor.mergeHdr') },
             {
               icon: LayoutTemplate,
               label: t('contextMenus.editor.frameImage'),
@@ -239,6 +251,15 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               },
             },
             { label: t('contextMenus.editor.cullImage'), icon: Users, disabled: true },
+          ],
+        },
+        {
+          label: t('contextMenus.merge.title'),
+          icon: LayersArrowDown,
+          submenu: [
+            { disabled: true, icon: SquaresUnite, label: t('contextMenus.editor.stitchPanorama') },
+            { disabled: true, icon: Images, label: t('contextMenus.editor.mergeHdr') },
+            { disabled: true, icon: Layers, label: t('contextMenus.merge.focusStack') },
           ],
         },
         { type: OPTION_SEPARATOR },
@@ -471,16 +492,11 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       };
 
       const onExportClick = () => {
-        if (selectedImage) {
-          if (selectedImage.path !== path) {
-            props.handleImageSelect(path);
-          }
-          setLibrary({ multiSelectedPaths: finalSelection });
-          setPanel(Panel.Export);
-        } else {
-          setLibrary({ multiSelectedPaths: finalSelection });
-          setUI({ isLibraryExportPanelVisible: true });
+        setLibrary({ multiSelectedPaths: finalSelection });
+        if (activeView === 'editor' && selectedImage && selectedImage.path !== path) {
+          props.handleImageSelect(path);
         }
+        setPanel(Panel.Export);
       };
 
       const handleRemoveFromAlbum = async () => {
@@ -553,7 +569,12 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           label: t('contextMenus.editor.productivity'),
           icon: Gauge,
           submenu: [
-            { label: autoAdjustLabel, icon: Aperture, onClick: handleApplyAutoAdjustmentsToSelection },
+            { label: autoAdjustLabel, icon: PencilSparkles, onClick: handleApplyAutoAdjustmentsToSelection },
+            {
+              label: t('contextMenus.thumbnail.autoLensCorrection', { count: selectionCount }),
+              icon: Aperture,
+              onClick: () => handleAutoLensCorrection(finalSelection),
+            },
             {
               label: denoiseLabel,
               icon: Grip,
@@ -580,6 +601,36 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                 setUI({ negativeModalState: { isOpen: true, targetPaths: finalSelection } });
               },
             },
+            {
+              icon: LayoutTemplate,
+              label: collageLabel,
+              onClick: () => {
+                const imagesForCollage = imageList.filter((img) => finalSelection.includes(img.path));
+                setUI({ collageModalState: { isOpen: true, sourceImages: imagesForCollage } });
+              },
+              disabled: selectionCount === 0 || selectionCount > 9,
+            },
+            {
+              label: cullLabel,
+              icon: Users,
+              onClick: () =>
+                setUI({
+                  cullingModalState: {
+                    isOpen: true,
+                    progress: null,
+                    suggestions: null,
+                    error: null,
+                    pathsToCull: finalSelection,
+                  },
+                }),
+              disabled: selectionCount < 2,
+            },
+          ],
+        },
+        {
+          label: t('contextMenus.merge.title'),
+          icon: LayersArrowDown,
+          submenu: [
             {
               disabled: selectionCount < 2 || selectionCount > 30,
               icon: SquaresUnite,
@@ -615,28 +666,22 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               },
             },
             {
-              icon: LayoutTemplate,
-              label: collageLabel,
-              onClick: () => {
-                const imagesForCollage = imageList.filter((img) => finalSelection.includes(img.path));
-                setUI({ collageModalState: { isOpen: true, sourceImages: imagesForCollage } });
-              },
-              disabled: selectionCount === 0 || selectionCount > 9,
-            },
-            {
-              label: cullLabel,
-              icon: Users,
-              onClick: () =>
-                setUI({
-                  cullingModalState: {
-                    isOpen: true,
-                    progress: null,
-                    suggestions: null,
-                    error: null,
-                    pathsToCull: finalSelection,
-                  },
-                }),
               disabled: selectionCount < 2,
+              icon: Layers,
+              label: t('contextMenus.merge.focusStack'),
+              onClick: () => {
+                setUI({
+                  focusStackModalState: {
+                    error: null,
+                    finalImageBase64: null,
+                    depthMapBase64: null,
+                    isOpen: true,
+                    isProcessing: false,
+                    progressMessage: null,
+                    sourcePaths: finalSelection,
+                  },
+                });
+              },
             },
           ],
         },
@@ -651,11 +696,11 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
         {
           icon: CopyPlus,
           label: t('contextMenus.thumbnail.duplicateImage'),
-          disabled: !isSingleSelection,
           submenu: [
             {
               label: t('contextMenus.thumbnail.physicalCopy'),
               icon: Copy,
+              disabled: !isSingleSelection,
               onClick: async () => {
                 try {
                   await invoke(Invokes.DuplicateFile, {
@@ -676,6 +721,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
             {
               label: t('contextMenus.thumbnail.virtualCopy'),
               icon: CopyPlus,
+              disabled: !isSingleSelection,
               onClick: () => handleCreateVirtualCopy(finalSelection[0]),
             },
           ],
@@ -1092,7 +1138,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       };
 
       const buildMoveSubmenu = (nodes: AlbumItem[]): Option[] => {
-        let opts: Option[] = [];
+        const opts: Option[] = [];
         nodes.forEach((n) => {
           if (n.type === 'group' && n.id !== item?.id) {
             const isCurrentParent = n.id === currentParentId;

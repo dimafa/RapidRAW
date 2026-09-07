@@ -218,6 +218,24 @@ export const KEYBIND_DEFINITIONS: KeybindDefinition[] = [
     section: 'panels',
   },
   {
+    action: 'toggle_left_panel',
+    description: 'settings.keybinds.actions.toggle_left_panel',
+    defaultCombo: ['ctrl', 'shift', 'KeyB'],
+    section: 'panels',
+  },
+  {
+    action: 'toggle_right_panel',
+    description: 'settings.keybinds.actions.toggle_right_panel',
+    defaultCombo: ['ctrl', 'KeyB'],
+    section: 'panels',
+  },
+  {
+    action: 'toggle_bottom_panel',
+    description: 'settings.keybinds.actions.toggle_bottom_panel',
+    defaultCombo: ['ctrl', 'KeyJ'],
+    section: 'panels',
+  },
+  {
     action: 'toggle_library_exif',
     description: 'settings.keybinds.actions.toggle_library_exif',
     defaultCombo: ['KeyT'],
@@ -342,7 +360,7 @@ export function normalizeCombo(event: KeyboardEvent, osPlatform?: string): strin
   return parts;
 }
 
-export function codeToDisplayLabel(code: string): string | null {
+function codeToDisplayLabel(code: string): string | null {
   if (/^Key[A-Z]$/.test(code) || /^Digit[0-9]$/.test(code)) {
     return code[code.length - 1].toUpperCase();
   }
@@ -352,7 +370,7 @@ export function codeToDisplayLabel(code: string): string | null {
   return symMap[code] ?? null;
 }
 
-export function isValidShortcutKey(code: string): boolean {
+function isValidShortcutKey(code: string): boolean {
   if (code.startsWith('Key') || code.startsWith('Digit')) return true;
   if (code.startsWith('F') && /^\d+$/.test(code.slice(1))) return true;
   if (/^Numpad[0-9]$/.test(code)) return true;
@@ -366,8 +384,4 @@ export function formatKeyCode(key: string, osPlatform: string): string {
   if (key === 'Delete' && osPlatform === 'macos') return 'Delete / ⌘+⌫';
   const label = codeToDisplayLabel(key);
   return label || key;
-}
-
-export function arraysEqual(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
