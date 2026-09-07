@@ -1352,14 +1352,14 @@ fn write_jpeg_capture_date(
             ))),
         };
     }
-    if let Some(parent) = path.parent() {
-        if let Err(error) = sync_parent_directory(parent) {
-            log::warn!(
-                "Capture Date recovery cleanup for {} could not be synced: {}",
-                path.display(),
-                error
-            );
-        }
+    if let Some(parent) = path.parent()
+        && let Err(error) = sync_parent_directory(parent)
+    {
+        log::warn!(
+            "Capture Date recovery cleanup for {} could not be synced: {}",
+            path.display(),
+            error
+        );
     }
     if let Err(error) = clear_recovery_state(path, true, capture_date) {
         log::warn!(
@@ -1661,10 +1661,11 @@ pub async fn update_capture_dates(
                             ));
                         }
                     }
-                    if error.source_restored && source_written_before_rewrite {
-                        if let Some(backup) = metadata.capture_date_backup.as_mut() {
-                            backup.source_date_written = source_date_written_before_rewrite;
-                        }
+                    if error.source_restored
+                        && source_written_before_rewrite
+                        && let Some(backup) = metadata.capture_date_backup.as_mut()
+                    {
+                        backup.source_date_written = source_date_written_before_rewrite;
                     }
                 }
                 None => {}
@@ -1924,13 +1925,15 @@ mod capture_date_tests {
             original_modified
         );
 
-        let mut rapidraw_metadata = ImageMetadata::default();
-        rapidraw_metadata.capture_date_backup = Some(CaptureDateBackup {
-            date_time_original: Some("2020-01-02 03:04:05".to_string()),
-            source_written: true,
-            source_date_written: Some("2023-04-05 06:07:08".to_string()),
-            pending_source_rewrite: None,
-        });
+        let rapidraw_metadata = ImageMetadata {
+            capture_date_backup: Some(CaptureDateBackup {
+                date_time_original: Some("2020-01-02 03:04:05".to_string()),
+                source_written: true,
+                source_date_written: Some("2023-04-05 06:07:08".to_string()),
+                pending_source_rewrite: None,
+            }),
+            ..ImageMetadata::default()
+        };
         save_capture_date_metadata(&image_path, &rapidraw_metadata).unwrap();
         let before_remove_modified = filetime::FileTime::from_unix_time(1_600_000_100, 0);
         filetime::set_file_mtime(&image_path, before_remove_modified).unwrap();
@@ -1989,13 +1992,15 @@ mod capture_date_tests {
             );
         }
 
-        let mut rapidraw_metadata = ImageMetadata::default();
-        rapidraw_metadata.capture_date_backup = Some(CaptureDateBackup {
-            date_time_original: None,
-            source_written: false,
-            source_date_written: None,
-            pending_source_rewrite: None,
-        });
+        let rapidraw_metadata = ImageMetadata {
+            capture_date_backup: Some(CaptureDateBackup {
+                date_time_original: None,
+                source_written: false,
+                source_date_written: None,
+                pending_source_rewrite: None,
+            }),
+            ..ImageMetadata::default()
+        };
         save_capture_date_metadata(&image_path, &rapidraw_metadata).unwrap();
         write_jpeg_capture_date(&image_path, Some("1985-07-04 12:30:00"), None, false).unwrap();
         let updated_bytes = fs::read(&image_path).unwrap();
@@ -2057,18 +2062,20 @@ mod capture_date_tests {
         changed[location.offset..location.offset + 20].copy_from_slice(b"2021:02:03 04:05:06\0");
         fs::write(&image_path, changed).unwrap();
 
-        let mut metadata = ImageMetadata::default();
-        metadata.capture_date_backup = Some(CaptureDateBackup {
-            date_time_original: Some("2020-01-02 03:04:05".to_string()),
-            source_written: true,
-            source_date_written: Some("2021-02-03 04:05:06".to_string()),
-            pending_source_rewrite: Some(CaptureDateSourceRecovery {
-                backup_file_name: backup_file_name.to_string(),
-                original_date: Some("2020-01-02 03:04:05".to_string()),
-                intended_date: Some("2021-02-03 04:05:06".to_string()),
-                source_written_before_rewrite: false,
+        let metadata = ImageMetadata {
+            capture_date_backup: Some(CaptureDateBackup {
+                date_time_original: Some("2020-01-02 03:04:05".to_string()),
+                source_written: true,
+                source_date_written: Some("2021-02-03 04:05:06".to_string()),
+                pending_source_rewrite: Some(CaptureDateSourceRecovery {
+                    backup_file_name: backup_file_name.to_string(),
+                    original_date: Some("2020-01-02 03:04:05".to_string()),
+                    intended_date: Some("2021-02-03 04:05:06".to_string()),
+                    source_written_before_rewrite: false,
+                }),
             }),
-        });
+            ..ImageMetadata::default()
+        };
         save_capture_date_metadata(&image_path, &metadata).unwrap();
 
         assert!(recover_pending_capture_date_rewrite(&image_path).unwrap());
