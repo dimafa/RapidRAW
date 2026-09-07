@@ -123,6 +123,7 @@ pub fn all_available_adjustments() -> HashSet<String> {
         "lutPath",
         "lutSize",
         "lutData",
+        "lutIsSceneReferred",
         "glowAmount",
         "halationAmount",
         "flareAmount",
@@ -150,6 +151,7 @@ pub fn all_available_adjustments() -> HashSet<String> {
         "lensDistortionEnabled",
         "lensTcaEnabled",
         "lensVignetteEnabled",
+        "guidedPerspective",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -184,6 +186,7 @@ pub fn default_included_adjustments() -> HashSet<String> {
         "lensDistortionEnabled",
         "lensTcaEnabled",
         "lensVignetteEnabled",
+        "guidedPerspective",
     ];
 
     for item in off_by_default.iter() {
@@ -242,6 +245,10 @@ pub struct ExportPreset {
     pub preserve_folders: Option<bool>,
     #[serde(default)]
     pub last_export_path: Option<String>,
+    #[serde(default)]
+    pub destination_type: Option<String>,
+    #[serde(default)]
+    pub subfolder: Option<String>,
 }
 
 pub fn default_export_presets() -> Vec<ExportPreset> {
@@ -267,6 +274,8 @@ pub fn default_export_presets() -> Vec<ExportPreset> {
             export_masks: Some(false),
             preserve_folders: Some(false),
             last_export_path: None,
+            destination_type: Some("customFolder".to_string()),
+            subfolder: Some("".to_string()),
         },
         ExportPreset {
             id: "default-fast".to_string(),
@@ -289,6 +298,8 @@ pub fn default_export_presets() -> Vec<ExportPreset> {
             export_masks: Some(false),
             preserve_folders: Some(false),
             last_export_path: None,
+            destination_type: Some("customFolder".to_string()),
+            subfolder: Some("".to_string()),
         },
     ]
 }
@@ -308,14 +319,17 @@ pub struct WorkspaceState {
 impl Default for WorkspaceState {
     fn default() -> Self {
         let mut panel_layout = HashMap::new();
-        panel_layout.insert(
-            "leftTop".to_string(),
-            vec![
-                "metadata".to_string(),
-                "folderTree".to_string(),
-                "export".to_string(),
-            ],
-        );
+        #[allow(unused)]
+        let mut left_top = vec![
+            "metadata".to_string(),
+            "folderTree".to_string(),
+            "export".to_string(),
+        ];
+
+        #[cfg(feature = "tethering")]
+        left_top.push("tethering".to_string());
+
+        panel_layout.insert("leftTop".to_string(), left_top);
         panel_layout.insert("leftBottom".to_string(), vec![]);
 
         panel_layout.insert(
@@ -398,7 +412,9 @@ pub struct AppSettings {
     pub pinned_folders: Vec<String>,
     pub editor_preview_resolution: Option<u32>,
     #[serde(default)]
-    pub thumbnail_resolution: Option<u32>,
+    pub small_thumbnail_resolution: Option<u32>,
+    #[serde(default)]
+    pub medium_thumbnail_resolution: Option<u32>,
     #[serde(default)]
     pub enable_zoom_hifi: Option<bool>,
     #[serde(default)]
@@ -473,6 +489,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub zoom_speed_multiplier: Option<f32>,
     #[serde(default)]
+    pub zoom_photo_to_pixel_click: Option<bool>,
+    #[serde(default)]
     pub keybinds: HashMap<String, Vec<String>>,
     #[serde(default)]
     pub thumbnail_worker_threads: Option<u32>,
@@ -526,7 +544,8 @@ impl Default for AppSettings {
             last_root_path: None,
             root_folders: Vec::new(),
             pinned_folders: Vec::new(),
-            thumbnail_resolution: Some(720),
+            small_thumbnail_resolution: Some(480),
+            medium_thumbnail_resolution: Some(1280),
             #[cfg(target_os = "android")]
             editor_preview_resolution: Some(1280),
             #[cfg(not(target_os = "android"))]
@@ -582,6 +601,7 @@ impl Default for AppSettings {
             use_wgpu_renderer: Some(true),
             canvas_input_mode: Some("mouse".to_string()),
             zoom_speed_multiplier: Some(1.0),
+            zoom_photo_to_pixel_click: Some(false),
             keybinds: HashMap::new(),
             #[cfg(target_os = "android")]
             thumbnail_worker_threads: Some(2),
@@ -625,6 +645,11 @@ pub fn get_settings_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
     }
 
     Ok(settings_dir.join("settings.json"))
+}
+
+#[tauri::command]
+pub fn is_tethering_supported() -> bool {
+    cfg!(feature = "tethering")
 }
 
 #[tauri::command]
